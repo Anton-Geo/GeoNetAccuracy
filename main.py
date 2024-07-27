@@ -85,6 +85,144 @@ class EstimatedPoints(Points):
         super().__init__(name, x, y)
 
 
+class Instruments:
+    def __init__(self, type_name: str, instrument_name: str, inventory_number: str = None,
+                 linear_random_error: float = None, ppm: float = None,
+                 angular_random_error: float = None):
+        self._type_name = type_name
+        self._instrument_name = instrument_name
+        self._inventory_number = inventory_number
+        self._linear_random_error = linear_random_error
+        self._ppm = ppm
+        self._angular_random_error = angular_random_error
+
+    @property
+    def type_name(self) -> str:
+        return self._type_name
+
+    @type_name.setter
+    def type_name(self, new_type_name: str):
+        self._type_name = new_type_name
+
+    @property
+    def instrument_name(self) -> str:
+        return self._instrument_name
+
+    @instrument_name.setter
+    def instrument_name(self, new_instrument_name: str):
+        self._instrument_name = new_instrument_name
+
+    @property
+    def inventory_number(self) -> str:
+        return self._inventory_number
+
+    @inventory_number.setter
+    def inventory_number(self, new_inventory_number: str):
+        self._inventory_number = new_inventory_number
+
+    @property
+    def linear_random_error(self) -> float:
+        return self._linear_random_error
+
+    @linear_random_error.setter
+    def linear_random_error(self, new_linear_random_error: float):
+        self._linear_random_error = new_linear_random_error
+
+    @property
+    def ppm(self) -> float:
+        return self._ppm
+
+    @ppm.setter
+    def ppm(self, new_ppm: float):
+        self._ppm = new_ppm
+
+    @property
+    def angular_random_error(self) -> float:
+        return self._angular_random_error
+
+    @angular_random_error.setter
+    def angular_random_error(self, new_angular_random_error: float):
+        self._angular_random_error = new_angular_random_error
+
+
+class GnssReceivers(Instruments):
+    def __init__(self, type_name: str, instrument_name: str, inventory_number: str,
+                 linear_random_error: float, ppm: float):
+        super().__init__(type_name=type_name,
+                         instrument_name=instrument_name,
+                         inventory_number=inventory_number)
+        self._linear_random_error = linear_random_error
+        self._ppm = ppm
+
+    @property
+    def linear_random_error(self) -> float:
+        return self._linear_random_error
+
+    @linear_random_error.setter
+    def linear_random_error(self, new_linear_random_error: float):
+        self._linear_random_error = new_linear_random_error
+
+    @property
+    def ppm(self) -> float:
+        return self._ppm
+
+    @ppm.setter
+    def ppm(self, new_ppm: float):
+        self._ppm = new_ppm
+
+
+class Theodolites(Instruments):
+    def __init__(self, type_name: str, instrument_name: str, inventory_number: str,
+                 angular_random_error: float):
+        super().__init__(type_name=type_name,
+                         instrument_name=instrument_name,
+                         inventory_number=inventory_number)
+        self._angular_random_error = angular_random_error
+
+    @property
+    def angular_random_error(self) -> float:
+        return self._angular_random_error
+
+    @angular_random_error.setter
+    def angular_random_error(self, new_angular_random_error: float):
+        self._angular_random_error = new_angular_random_error
+
+
+class TotalStations(Instruments):
+    def __init__(self, type_name: str, instrument_name: str, inventory_number: str,
+                 linear_random_error: float, ppm: float, angular_random_error: float):
+        super().__init__(type_name=type_name,
+                         instrument_name=instrument_name,
+                         inventory_number=inventory_number)
+        self._linear_random_error = linear_random_error
+        self._ppm = ppm
+        self._angular_random_error = angular_random_error
+
+    @property
+    def linear_random_error(self) -> float:
+        return self._linear_random_error
+
+    @linear_random_error.setter
+    def linear_random_error(self, new_linear_random_error: float):
+        self._linear_random_error = new_linear_random_error
+
+    @property
+    def ppm(self) -> float:
+        return self._ppm
+
+    @ppm.setter
+    def ppm(self, new_ppm: float):
+        self._ppm = new_ppm
+
+    @property
+    def angular_random_error(self) -> float:
+        return self._angular_random_error
+
+    @angular_random_error.setter
+    def angular_random_error(self, new_angular_random_error: float):
+        self._angular_random_error = new_angular_random_error
+
+
 class Stations:
     def __init__(self, name: str, point: Points,
                  instr_orientation_flag: bool = False,
@@ -128,11 +266,14 @@ class Stations:
 
 
 class Measurements:
-    def __init__(self, station: Stations, start_point: Points, end_point: Points):
+    def __init__(self, station: Stations,
+                 start_point: Points, end_point: Points,
+                 instrument: Instruments):
         assert start_point is not end_point, "Start and end points must be different"
         self._station = station
         self._start_point = start_point
         self._end_point = end_point
+        self._instrument = instrument
 
     @property
     def station(self) -> Stations:
@@ -158,13 +299,24 @@ class Measurements:
     def end_point(self, new_end_point: Points):
         self._end_point = new_end_point
 
+    @property
+    def instrument(self) -> Instruments:
+        return self._instrument
+
+    @instrument.setter
+    def instrument(self, new_instrument: Points):
+        self._instrument = new_instrument
+
 
 class LinearMeasurements(Measurements):
-    def __init__(self, station: Stations, start_point: Points, end_point: Points,
-                 random_error: float, ppm: float):
-        super().__init__(station=station, start_point=start_point, end_point=end_point)
-        self._random_error = random_error
-        self._ppm = ppm
+    def __init__(self, station: Stations,
+                 start_point: Points, end_point: Points,
+                 instrument: Union[GnssReceivers, TotalStations]):
+        super().__init__(station=station,
+                         start_point=start_point, end_point=end_point,
+                         instrument=instrument)
+        self._random_error = instrument.linear_random_error
+        self._ppm = instrument.ppm
         self._value = self.calculate_value()
 
     @property
@@ -201,10 +353,13 @@ class LinearMeasurements(Measurements):
 class AngularMeasurements(Measurements):  # as an angular direction!
     RHO = 206265
 
-    def __init__(self, station: Stations, start_point: Points, end_point: Points,
-                 random_error: float):
-        super().__init__(station=station, start_point=start_point, end_point=end_point)
-        self._random_error = random_error
+    def __init__(self, station: Stations,
+                 start_point: Points, end_point: Points,
+                 instrument: Union[Theodolites, TotalStations]):
+        super().__init__(station=station,
+                         start_point=start_point, end_point=end_point,
+                         instrument=instrument)
+        self._random_error = instrument.angular_random_error
         self._value = self.calculate_value()
 
     @property
@@ -249,18 +404,50 @@ class AngularMeasurements(Measurements):  # as an angular direction!
         return 1
 
 
-def import_points(path: str = PATH_IMPORT_EXCEL,
-                  points_sheet_name: str = 'Points',
-                  measurements_sheet_name: str = 'Measurements'):
+def import_excel_data(path: str = PATH_IMPORT_EXCEL,
+                      instruments_sheet_name: str = 'Instruments',
+                      points_sheet_name: str = 'Points',
+                      measurements_sheet_name: str = 'Measurements'):
     # Load data from Excel file
+    df_instruments = pd.read_excel(path, sheet_name=instruments_sheet_name)
     df_points = pd.read_excel(path, sheet_name=points_sheet_name)
     df_measurements = pd.read_excel(path, sheet_name=measurements_sheet_name)
 
-    print(df_points.head(10))
-    print(df_measurements.head(10))
+    # print('---- df_instruments ----')
+    # print(df_instruments.head(10))
+    # print('---- df_points ----')
+    # print(df_points.head(10))
+    # print('---- df_measurements ----')
+    # print(df_measurements.head(10))
+    # print('-- -- -- -- -- -- -- -- --')
 
-    list_points = []
+    # Go through the lines of df_instruments and create the corresponding instrument objects
+    list_instruments = []
+    for index, row in df_instruments.iterrows():
+        if row['instrument_type'] == 'gnss_receiver':
+            gnss_receiver = GnssReceivers(row['instrument_type'], row['instrument_name'],
+                                          row['inventory_number'],
+                                          row['linear_rmse'], row['linear_ppm'])
+            list_instruments.append(gnss_receiver)
+        elif row['instrument_type'] == 'theodolite':
+            theodolite = Theodolites(row['instrument_type'], row['instrument_name'],
+                                     row['inventory_number'],
+                                     row['hor_angle_rmse'])
+            list_instruments.append(theodolite)
+        elif row['instrument_type'] == 'total_station':
+            total_station = TotalStations(row['instrument_type'], row['instrument_name'],
+                                          row['inventory_number'],
+                                          row['linear_rmse'], row['linear_ppm'],
+                                          row['hor_angle_rmse'])
+            list_instruments.append(total_station)
+
+    print('---- instruments ----')
+    print(*[(i.inventory_number, i.type_name, i.instrument_name,
+             i.linear_random_error, i.ppm,
+             i.angular_random_error) for i in list_instruments], sep='\n')
+
     # Go through the lines of df_points and create the corresponding point objects
+    list_points = []
     for index, row in df_points.iterrows():
         if row['point_type'] == 'base':
             base_point = BasePoints(row['point_name'], row['x'], row['y'])
@@ -303,16 +490,21 @@ def import_points(path: str = PATH_IMPORT_EXCEL,
             if station and station.instr_orientation_flag is False:
                 station.instr_orientation_flag = True
 
-        print([(station.name, station.point.name, station.instr_orientation_flag) for station in
-               list_stations])
+        # print([(station.name, station.point.name, station.instr_orientation_flag) for station in
+        #        list_stations])
 
     # Go through the lines of df_measurements and create the corresponding measurement objects
     list_measurements = []
     for index, row in df_measurements.iterrows():
         if row['measurement_type'] in ('linear', 'angular'):
+            instrument_id = row['instrument_inventory_number']
             station_name = row['station_name']
             start_point_name = row['station_point_name']
             end_point_name = row['aim_point_name']
+
+            # Find the corresponding instrument in the list_instruments
+            instrument = next((instrument for instrument in list_instruments
+                               if instrument.inventory_number == instrument_id), None)
 
             # Find the corresponding station in the list_stations
             station = next((st for st in list_stations if st.name == station_name), None)
@@ -323,18 +515,23 @@ def import_points(path: str = PATH_IMPORT_EXCEL,
             end_point = next((point for point in list_points if point.name == end_point_name),
                              None)
 
-            if station and start_point and end_point and row['measurement_type'] == 'linear':
-                measurement = LinearMeasurements(station, start_point, end_point,
-                                                 row['random_error'] / 1000,
-                                                 row['ppm'] / 1000)
-                list_measurements.append(measurement)
-            elif station and start_point and end_point and row['measurement_type'] == 'angular':
-                measurement = AngularMeasurements(station, start_point, end_point,
-                                                  row['random_error'])
-                list_measurements.append(measurement)
+            if instrument and station and start_point and end_point:
+                if row['measurement_type'] == 'linear':
+                    measurement = LinearMeasurements(station, start_point, end_point, instrument)
+                    list_measurements.append(measurement)
+                elif row['measurement_type'] == 'angular':
+                    measurement = AngularMeasurements(station, start_point, end_point, instrument)
+                    list_measurements.append(measurement)
+
             else:
-                print(f"Warning: Could not find station or points for measurement "
-                      f"{station_name}: {start_point_name} to {end_point_name}")
+                print(f"Warning: Could not find instrument or station or points for measurement "
+                      f"instrument {instrument}, station {station_name}: "
+                      f"{start_point_name} to {end_point_name}")
+
+    print('---- measurements ----')
+    print(*[(m.instrument.instrument_name,
+             m.station.name, m.start_point.name, m.end_point.name,
+             m.calculate_rmse()) for m in list_measurements], sep='\n')
 
     return list_points, list_measurements, list_stations
 
@@ -401,19 +598,31 @@ def create_jacobian_matrix(filtered_points: Dict,
                     measurement.station == station:
                 matrix[i, j] = measurement.partial_derivative_orientation()
 
-    # print(matrix)
+    with np.printoptions(precision=4, suppress=True):
+        print('---- jacobian_matrix ----')
+        print(matrix)
     return matrix
 
 
 def create_precision_matrix(list_measurements: List[Union[LinearMeasurements,
                                                           AngularMeasurements]]) -> np.ndarray:
     num_measurements = len(list_measurements)
-    weight_values = [1 / measurement.calculate_rmse()**2 for measurement in list_measurements]
+    weight_values = []
+    for measurement in list_measurements:
+        if isinstance(measurement, LinearMeasurements):
+            rmse = measurement.calculate_rmse() / 1000
+            weight_values.append(1 / rmse**2)
+        elif isinstance(measurement, AngularMeasurements):
+            rmse = measurement.calculate_rmse()
+            weight_values.append(1 / rmse**2)
 
     weight_matrix = np.zeros((num_measurements, num_measurements))
 
     np.fill_diagonal(weight_matrix, weight_values)
 
+    with np.printoptions(precision=2, suppress=True):
+        print('---- weight_matrix ----')
+        print(weight_matrix)
     return weight_matrix
 
 
@@ -428,6 +637,10 @@ def assess_points_accuracy(list_of_points: List[Points],
     J = create_jacobian_matrix(filtered_points, filtered_measurements, list_stations)
     P = create_precision_matrix(filtered_measurements)
     K = np.linalg.inv(J.T@P@J)
+
+    with np.printoptions(precision=6, suppress=True):
+        print('---- covariance_matrix ----')
+        print(K)
 
     # Writing values to Point instances
     point_table = {}
@@ -456,13 +669,12 @@ def assess_points_accuracy(list_of_points: List[Points],
         station.instr_orientation_rmse = instr_orientation_rmse
 
         station_table[station.name] = [station.point.name, station.point.x, station.point.y,
-                                       station.instr_orientation_rmse]
+                                       round(station.instr_orientation_rmse, 2)]
     return point_table, station_table
 
 
 def main():
-
-    result_import = assess_points_accuracy(*import_points())
+    result_import = assess_points_accuracy(*import_excel_data())
     print('---- Network points accuracy assessment ----')
     print(*result_import[0].items(), sep='\n')
     print('---- Station orientation accuracy assessment ----')
