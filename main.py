@@ -11,14 +11,37 @@ PATH_IMPORT_EXCEL = 'Data_for_preliminary_aa.xlsx'
 
 
 class Points:
-    def __init__(self, name: str, x: float, y: float,
-                 rmse_x: float = 0.0, rmse_y: float = 0.0, cov_xy: float = 0.0):
+    def __init__(self, type_name: str, name: str, x: float, y: float,
+                 rmse_x: float = 1000.0, rmse_y: float = 1000.0, corr_xy: float = 0.0):
+        self._type_name = type_name
         self._name = name
         self._x = x
         self._y = y
         self._rmse_x = rmse_x
         self._rmse_y = rmse_y
-        self._cov_xy = cov_xy
+        self._corr_xy = corr_xy
+        self._rmse_major = None
+        self._rmse_minor = None
+        self._ellipse_angle = None
+
+    def calc_ellipse_parameters(self):
+        cov_matrix = np.array([[self._rmse_x**2, self._corr_xy * self._rmse_x * self._rmse_y],
+                               [self._corr_xy * self._rmse_x * self._rmse_y, self._rmse_y**2]])
+        tr_c_m, det_c_m = np.trace(cov_matrix), np.linalg.det(cov_matrix)
+        rmse_major = ((tr_c_m + (tr_c_m**2 - 4 * det_c_m)**0.5) / 2)**0.5
+        rmse_minor = ((tr_c_m - (tr_c_m**2 - 4 * det_c_m)**0.5) / 2)**0.5
+        ellipse_angle = 0.5 * math.atan2(2 * self._corr_xy * self._rmse_x * self._rmse_y,
+                                         self._rmse_x**2 - self._rmse_y**2)
+        if self._rmse_y > self._rmse_x:
+            ellipse_angle += math.pi / 2
+        return rmse_major, rmse_minor, ellipse_angle
+
+    def update_ellipse_parameters(self):
+        self._rmse_major, self._rmse_minor, self._ellipse_angle = self.calc_ellipse_parameters()
+
+    @property
+    def type_name(self) -> str:
+        return self._type_name
 
     @property
     def name(self) -> str:
@@ -41,11 +64,27 @@ class Points:
         return self._rmse_y
 
     @property
-    def cov_xy(self) -> float:
-        return self._cov_xy
+    def corr_xy(self) -> float:
+        return self._corr_xy
+
+    @property
+    def rmse_major(self) -> float:
+        return self._rmse_major
+
+    @property
+    def rmse_minor(self) -> float:
+        return self._rmse_minor
+
+    @property
+    def ellipse_angle(self) -> float:
+        return self._ellipse_angle
+
+    @type_name.setter
+    def type_name(self, new_type_name: str):
+        self._type_name = new_type_name
 
     @name.setter
-    def name(self, new_name: float):
+    def name(self, new_name: str):
         self._name = new_name
 
     @x.setter
@@ -59,30 +98,50 @@ class Points:
     @rmse_x.setter
     def rmse_x(self, new_rmse_x: float):
         self._rmse_x = new_rmse_x
+        self._rmse_major, self._rmse_minor, self._ellipse_angle = self.calc_ellipse_parameters()
 
     @rmse_y.setter
     def rmse_y(self, new_rmse_y: float):
         self._rmse_y = new_rmse_y
+        self._rmse_major, self._rmse_minor, self._ellipse_angle = self.calc_ellipse_parameters()
 
-    @cov_xy.setter
-    def cov_xy(self, new_cov_xy: float):
-        self._cov_xy = new_cov_xy
+    @corr_xy.setter
+    def corr_xy(self, new_corr_xy: float):
+        self._corr_xy = new_corr_xy
+        self._rmse_major, self._rmse_minor, self._ellipse_angle = self.calc_ellipse_parameters()
+
+    @rmse_major.setter
+    def rmse_major(self, new_rmse_major: float):
+        self._rmse_major = new_rmse_major
+
+    @rmse_minor.setter
+    def rmse_minor(self, new_rmse_minor: float):
+        self._rmse_minor = new_rmse_minor
+
+    @ellipse_angle.setter
+    def ellipse_angle(self, new_ellipse_angle: float):
+        self._ellipse_angle = new_ellipse_angle
 
 
 class BasePoints(Points):
     def __init__(self, name: str, x: float, y: float):
-        super().__init__(name, x, y)
+        super().__init__(type_name='base_point', name=name,
+                         x=x, y=y,
+                         rmse_x=0.0, rmse_y=0.0, corr_xy=0.0)
 
 
 class RefinedPoints(Points):
     def __init__(self, name: str, x: float, y: float,
-                 rmse_x: float, rmse_y: float, cov_xy: float):
-        super().__init__(name, x, y, rmse_x, rmse_y, cov_xy)
+                 rmse_x: float, rmse_y: float, corr_xy: float):
+        super().__init__(type_name='refined_point', name=name,
+                         x=x, y=y,
+                         rmse_x=rmse_x, rmse_y=rmse_y, corr_xy=corr_xy)
 
 
 class EstimatedPoints(Points):
     def __init__(self, name: str, x: float, y: float):
-        super().__init__(name, x, y)
+        super().__init__(type_name='estimated_point', name=name,
+                         x=x, y=y)
 
 
 class Instruments:
@@ -456,15 +515,15 @@ def import_excel_data(path: str = PATH_IMPORT_EXCEL,
             estimated_point = EstimatedPoints(row['point_name'], row['x'], row['y'])
             list_points.append(estimated_point)
         elif row['point_type'] == 'refined':
-            if pd.notna(row['rmse_x']) and pd.notna(row['rmse_y']) and pd.notna(row['cov_xy']):
+            if pd.notna(row['rmse_x']) and pd.notna(row['rmse_y']) and pd.notna(row['corr_xy']):
                 refined_point = RefinedPoints(row['point_name'], row['x'], row['y'],
-                                              row['rmse_x'], row['rmse_y'], row['cov_xy'])
+                                              row['rmse_x'], row['rmse_y'], row['corr_xy'])
             elif pd.notna(row['rmse_x']) and pd.notna(row['rmse_y']):
                 refined_point = RefinedPoints(row['point_name'], row['x'], row['y'],
-                                              row['rmse_x'], row['rmse_y'], cov_xy=0.0)
+                                              row['rmse_x'], row['rmse_y'], corr_xy=0.0)
             else:
                 refined_point = RefinedPoints(row['point_name'], row['x'], row['y'],
-                                              rmse_x=0.0, rmse_y=0.0, cov_xy=0.0)
+                                              rmse_x=1000.0, rmse_y=1000.0, corr_xy=0.0)
             list_points.append(refined_point)
 
     # Go through the lines of df_measurements and create list of Stations
@@ -659,14 +718,15 @@ def create_precision_matrix(list_measurements: List[Union[LinearMeasurements,
     t = len(list_measurements)
     for i, point in dict_refined_points.items():
         rmse_x, rmse_y = point.rmse_x / 1000, point.rmse_y / 1000
-        cov_xy = point.cov_xy / 1000
-        sub_matrix_k = np.array([[rmse_x**2, cov_xy],
-                                 [cov_xy, rmse_y**2]])
+        var_x, var_y = rmse_x**2, rmse_y**2
+        cov_xy = point.corr_xy * rmse_x * rmse_y
+        sub_matrix_k = np.array([[var_x, cov_xy],
+                                 [cov_xy, var_y]])
         sub_matrix_p = np.linalg.inv(sub_matrix_k)
         weight_matrix[t + i * 2, t + i * 2] = sub_matrix_p[0, 0]
         weight_matrix[t + i * 2 + 1, t + i * 2 + 1] = sub_matrix_p[1, 1]
-        weight_matrix[t + i * 2 + 1, t + i * 2] = sub_matrix_p[1, 0]
         weight_matrix[t + i * 2, t + i * 2 + 1] = sub_matrix_p[0, 1]
+        weight_matrix[t + i * 2 + 1, t + i * 2] = sub_matrix_p[1, 0]
 
     with np.printoptions(precision=2, suppress=True):
         print('---- weight_matrix ----')
@@ -699,16 +759,22 @@ def assess_points_accuracy(list_of_points: List[Points],
             rmse_x = np.sqrt(matrix_k[i * 2, i * 2])
             rmse_y = np.sqrt(matrix_k[i * 2 + 1, i * 2 + 1])
             cov_xy = matrix_k[i * 2, i * 2 + 1]
-            correlation = cov_xy / (rmse_x * rmse_y) if rmse_x * rmse_y != 0 else 0.0
+            corr_xy = cov_xy / (rmse_x * rmse_y) if rmse_x * rmse_y != 0 else 0.0
 
             point.rmse_x = rmse_x
             point.rmse_y = rmse_y
-            point.cov_xy = cov_xy
+            point.corr_xy = corr_xy
+            point.update_ellipse_parameters()
 
             point_table[point.name] = [point.x, point.y,
                                        round(point.rmse_x * 1000, 2),
                                        round(point.rmse_y * 1000, 2),
-                                       round(correlation, 2)]
+                                       round(point.corr_xy, 2),
+                                       point.type_name,
+                                       round(point.rmse_major * 1000, 2),
+                                       round(point.rmse_minor * 1000, 2),
+                                       round(206265 / 3600 * point.ellipse_angle, 2)
+                                       ]
 
     # Writing values to Station instances
     stations_with_flag = [station for station in list_of_stations if station.instr_orientation_flag]
@@ -728,16 +794,22 @@ def assess_points_accuracy(list_of_points: List[Points],
             rmse_x = np.sqrt(matrix_k[t + i * 2, t + i * 2])
             rmse_y = np.sqrt(matrix_k[t + i * 2 + 1, t + i * 2 + 1])
             cov_xy = matrix_k[t + i * 2, t + i * 2 + 1]
-            correlation = cov_xy / (rmse_x * rmse_y) if rmse_x * rmse_y != 0 else 0.0
+            corr_xy = cov_xy / (rmse_x * rmse_y) if rmse_x * rmse_y != 0 else 0.0
 
             point.rmse_x = rmse_x
             point.rmse_y = rmse_y
-            point.cov_xy = cov_xy
+            point.corr_xy = corr_xy
+            point.update_ellipse_parameters()
 
             point_table[point.name] = [point.x, point.y,
                                        round(point.rmse_x * 1000, 2),
                                        round(point.rmse_y * 1000, 2),
-                                       round(correlation, 2)]
+                                       round(point.corr_xy, 2),
+                                       point.type_name,
+                                       round(point.rmse_major * 1000, 2),
+                                       round(point.rmse_minor * 1000, 2),
+                                       round(206265 / 3600 * point.ellipse_angle, 2)
+                                       ]
 
     return point_table, station_table
 
