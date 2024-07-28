@@ -537,30 +537,38 @@ def import_excel_data(path: str = PATH_IMPORT_EXCEL,
 
 
 def create_filtered_points(list_of_points: List[Points],
-                           all_measurements: List[Measurements]) -> Dict:
-    filtered_points = {}
-    seen_points = set()
+                           all_measurements: List[Measurements]) -> Tuple[Dict, Dict]:
 
+    seen_points = set()
+    dict_estimated_points = {}
     k = 0
-    for point in list_of_points:
-        if isinstance(point, (RefinedPoints, EstimatedPoints)) and point not in seen_points:
-            filtered_points[k] = point
-            seen_points.add(point)
+    for e_point in list_of_points:
+        if isinstance(e_point, EstimatedPoints) and e_point not in seen_points:
+            dict_estimated_points[k] = e_point
+            seen_points.add(e_point)
             k += 1
 
-    return filtered_points
+    dict_refined_points = {}
+    k = 0
+    for r_point in list_of_points:
+        if isinstance(r_point, RefinedPoints) and r_point not in seen_points:
+            dict_refined_points[k] = r_point
+            seen_points.add(r_point)
+            k += 1
+
+    return dict_estimated_points, dict_refined_points
 
 
-def create_filtered_measurements(filtered_points: Dict,
+def create_filtered_measurements(filtered_points: Tuple[Dict, Dict],
                                  all_measurements: List[Union[LinearMeasurements,
                                                               AngularMeasurements]]
                                  ) -> List[Union[LinearMeasurements,
                                                  AngularMeasurements]]:
     filtered_measurements = []
+    dict_estimated_points, dict_refined_points = filtered_points
 
     # Create a set of points from the values of the filtered_points dictionary
-    filtered_points_set = set(filtered_points.values())
-
+    filtered_points_set = set(dict_estimated_points.values()) | set(dict_refined_points.values())
     for measurement in all_measurements:
         if isinstance(measurement, LinearMeasurements) and \
                 (measurement.start_point in filtered_points_set or
@@ -572,42 +580,70 @@ def create_filtered_measurements(filtered_points: Dict,
     return filtered_measurements
 
 
-def create_jacobian_matrix(filtered_points: Dict,
-                           all_measurements: List[Union[LinearMeasurements,
-                                                        AngularMeasurements]],
+def create_jacobian_matrix(filtered_points: Tuple[Dict, Dict],
+                           filtered_measurements: List[Union[LinearMeasurements,
+                                                             AngularMeasurements]],
                            list_stations: List) -> np.ndarray:
-    num_measurements = len(all_measurements)
+    dict_estimated_points, dict_refined_points = filtered_points
+    num_measurements = len(filtered_measurements)
     num_orients = sum(station.instr_orientation_flag for station in list_stations)
-    num_parameters = len(filtered_points) * 2 + num_orients
 
-    matrix = np.zeros((num_measurements, num_parameters))
+    num_parameters = len(dict_estimated_points) * 2 + num_orients + len(dict_refined_points) * 2
 
-    for i, measurement in enumerate(all_measurements):
-        for j, point in filtered_points.items():
-            if point == measurement.start_point:
-                matrix[i, j * 2] = measurement.partial_derivative_sp_x()
-                matrix[i, j * 2 + 1] = measurement.partial_derivative_sp_y()
-            elif point == measurement.end_point:
-                matrix[i, j * 2] = measurement.partial_derivative_ep_x()
-                matrix[i, j * 2 + 1] = measurement.partial_derivative_ep_y()
+    matrix_j = np.zeros((num_measurements + len(dict_refined_points) * 2, num_parameters))
 
+    # Filling the matrix according to the parameters of unknown (estimated) points (A_1)
+    for i, measurement in enumerate(filtered_measurements):
+        for j, point in dict_estimated_points.items():
+            if point == measurement.start_point and isinstance(point, EstimatedPoints):
+                matrix_j[i, j * 2] = measurement.partial_derivative_sp_x()
+                matrix_j[i, j * 2 + 1] = measurement.partial_derivative_sp_y()
+            elif point == measurement.end_point and isinstance(point, EstimatedPoints):
+                matrix_j[i, j * 2] = measurement.partial_derivative_ep_x()
+                matrix_j[i, j * 2 + 1] = measurement.partial_derivative_ep_y()
+
+    # Filling the matrix according to the parameters of stations orientations (A_1)
     stations_with_flag = [station for station in list_stations if station.instr_orientation_flag]
-    for i, measurement in enumerate(all_measurements):
-        for j, station in enumerate(stations_with_flag, start=(len(filtered_points) * 2)):
+    for i, measurement in enumerate(filtered_measurements):
+        for j, station in enumerate(stations_with_flag, start=(len(dict_estimated_points) * 2)):
             if isinstance(measurement, AngularMeasurements) and \
                     measurement.station == station:
-                matrix[i, j] = measurement.partial_derivative_orientation()
+                matrix_j[i, j] = measurement.partial_derivative_orientation()
+
+    # Filling the matrix according to the parameters of redefined points (A_2)
+    tj = len(dict_estimated_points) * 2 + num_orients
+    for i, measurement in enumerate(filtered_measurements):
+        for j, point in dict_refined_points.items():
+            if point == measurement.start_point and isinstance(point, RefinedPoints):
+                matrix_j[i, tj + j * 2] = measurement.partial_derivative_sp_x()
+                matrix_j[i, tj + j * 2 + 1] = measurement.partial_derivative_sp_y()
+            elif point == measurement.end_point and isinstance(point, RefinedPoints):
+                matrix_j[i, tj + j * 2] = measurement.partial_derivative_ep_x()
+                matrix_j[i, tj + j * 2 + 1] = measurement.partial_derivative_ep_y()
+
+    # Filling the matrix according to the parameters of redefined points (E)
+    ti = len(filtered_measurements)
+    tj = len(dict_estimated_points) * 2 + num_orients
+    for i, _ in dict_refined_points.items():
+        for j, _ in dict_refined_points.items():
+            matrix_j[ti + i * 2, tj + j * 2] = 1
+            matrix_j[ti + i * 2 + 1, tj + j * 2 + 1] = 1
 
     with np.printoptions(precision=4, suppress=True):
         print('---- jacobian_matrix ----')
-        print(matrix)
-    return matrix
+        print(matrix_j)
+    return matrix_j
 
 
 def create_precision_matrix(list_measurements: List[Union[LinearMeasurements,
-                                                          AngularMeasurements]]) -> np.ndarray:
+                                                          AngularMeasurements]],
+                            dict_refined_points: Dict) -> np.ndarray:
     num_measurements = len(list_measurements)
+    num_refined_points = len(dict_refined_points) * 2
+    dimensionality = num_measurements + num_refined_points
+
     weight_values = []
+    # Measurement weights
     for measurement in list_measurements:
         if isinstance(measurement, LinearMeasurements):
             rmse = measurement.calculate_rmse() / 1000
@@ -616,9 +652,21 @@ def create_precision_matrix(list_measurements: List[Union[LinearMeasurements,
             rmse = measurement.calculate_rmse()
             weight_values.append(1 / rmse**2)
 
-    weight_matrix = np.zeros((num_measurements, num_measurements))
-
+    weight_matrix = np.zeros((dimensionality, dimensionality))
     np.fill_diagonal(weight_matrix, weight_values)
+
+    # Weights of coordinates of redefined points
+    t = len(list_measurements)
+    for i, point in dict_refined_points.items():
+        rmse_x, rmse_y = point.rmse_x / 1000, point.rmse_y / 1000
+        cov_xy = point.cov_xy / 1000
+        sub_matrix_k = np.array([[rmse_x**2, cov_xy],
+                                 [cov_xy, rmse_y**2]])
+        sub_matrix_p = np.linalg.inv(sub_matrix_k)
+        weight_matrix[t + i * 2, t + i * 2] = sub_matrix_p[0, 0]
+        weight_matrix[t + i * 2 + 1, t + i * 2 + 1] = sub_matrix_p[1, 1]
+        weight_matrix[t + i * 2 + 1, t + i * 2] = sub_matrix_p[1, 0]
+        weight_matrix[t + i * 2, t + i * 2 + 1] = sub_matrix_p[0, 1]
 
     with np.printoptions(precision=2, suppress=True):
         print('---- weight_matrix ----')
@@ -627,28 +675,30 @@ def create_precision_matrix(list_measurements: List[Union[LinearMeasurements,
 
 
 def assess_points_accuracy(list_of_points: List[Points],
-                           list_measurements: List[Union[LinearMeasurements,
-                                                         AngularMeasurements]],
-                           list_stations: List[Stations]
+                           list_of_measurements: List[Union[LinearMeasurements,
+                                                            AngularMeasurements]],
+                           list_of_stations: List[Stations]
                            ) -> Tuple[Dict[str, List[float]], Dict[str, List[float]]]:
-    filtered_points = create_filtered_points(list_of_points, list_measurements)
-    filtered_measurements = create_filtered_measurements(filtered_points, list_measurements)
 
-    J = create_jacobian_matrix(filtered_points, filtered_measurements, list_stations)
-    P = create_precision_matrix(filtered_measurements)
-    K = np.linalg.inv(J.T@P@J)
+    filtered_points = create_filtered_points(list_of_points, list_of_measurements)
+    dict_estimated_points, dict_refined_points = filtered_points
+    filtered_measurements = create_filtered_measurements(filtered_points, list_of_measurements)
+
+    matrix_j = create_jacobian_matrix(filtered_points, filtered_measurements, list_of_stations)  # J
+    matrix_p = create_precision_matrix(filtered_measurements, dict_refined_points)  # P
+    matrix_k = np.linalg.inv(matrix_j.T @ matrix_p @ matrix_j)  # K
 
     with np.printoptions(precision=6, suppress=True):
         print('---- covariance_matrix ----')
-        print(K)
+        print(matrix_k)
 
-    # Writing values to Point instances
+    # Writing values to EstimatedPoints instances
     point_table = {}
-    for i, point in filtered_points.items():
+    for i, point in dict_estimated_points.items():
         if isinstance(point, (RefinedPoints, EstimatedPoints)):
-            rmse_x = np.sqrt(K[i * 2, i * 2])
-            rmse_y = np.sqrt(K[i * 2 + 1, i * 2 + 1])
-            cov_xy = K[i * 2, i * 2 + 1]
+            rmse_x = np.sqrt(matrix_k[i * 2, i * 2])
+            rmse_y = np.sqrt(matrix_k[i * 2 + 1, i * 2 + 1])
+            cov_xy = matrix_k[i * 2, i * 2 + 1]
             correlation = cov_xy / (rmse_x * rmse_y) if rmse_x * rmse_y != 0 else 0.0
 
             point.rmse_x = rmse_x
@@ -661,15 +711,34 @@ def assess_points_accuracy(list_of_points: List[Points],
                                        round(correlation, 2)]
 
     # Writing values to Station instances
-    stations_with_flag = [station for station in list_stations if station.instr_orientation_flag]
+    stations_with_flag = [station for station in list_of_stations if station.instr_orientation_flag]
     station_table = {}
-    for i, station in enumerate(stations_with_flag, start=(len(filtered_points) * 2)):
-        instr_orientation_rmse = np.sqrt(K[i, i])
+    for i, station in enumerate(stations_with_flag, start=(len(dict_estimated_points) * 2)):
+        instr_orientation_rmse = np.sqrt(matrix_k[i, i])
 
         station.instr_orientation_rmse = instr_orientation_rmse
 
         station_table[station.name] = [station.point.name, station.point.x, station.point.y,
                                        round(station.instr_orientation_rmse, 2)]
+
+    # Writing values to RefinedPoints instances
+    t = len(dict_estimated_points) * 2 + len(stations_with_flag)
+    for i, point in dict_refined_points.items():
+        if isinstance(point, (RefinedPoints, EstimatedPoints)):
+            rmse_x = np.sqrt(matrix_k[t + i * 2, t + i * 2])
+            rmse_y = np.sqrt(matrix_k[t + i * 2 + 1, t + i * 2 + 1])
+            cov_xy = matrix_k[t + i * 2, t + i * 2 + 1]
+            correlation = cov_xy / (rmse_x * rmse_y) if rmse_x * rmse_y != 0 else 0.0
+
+            point.rmse_x = rmse_x
+            point.rmse_y = rmse_y
+            point.cov_xy = cov_xy
+
+            point_table[point.name] = [point.x, point.y,
+                                       round(point.rmse_x * 1000, 2),
+                                       round(point.rmse_y * 1000, 2),
+                                       round(correlation, 2)]
+
     return point_table, station_table
 
 
