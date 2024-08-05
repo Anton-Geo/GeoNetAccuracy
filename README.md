@@ -9,7 +9,8 @@ The main method for preliminary accuracy assessment is based on the concept of a
 <p>
   where <br>
   $\quad x^i$, $\hat{x}^i$ are the components of the vector of measurement and the vector of estimated parameters, respectively, <br>
-  $\quad P_{(ij)}$, $\hat{P}_{(ij)}$ are the components of the measurement accuracy matrix and the parameter accuracy matrix, respectively, <br>
+  $\quad J_{i}^{j}$ are the components of the Jacobian matrix, which is the linearized model matrix (design matrix), <br>
+  $\quad P_{(ij)}$, $\hat{P}_{(ij)}$ are the components of the measurement accuracy matrix (weighing matrix) and the parameter accuracy matrix, respectively, <br>
   $\quad \hat{K}^{(ij)}$ are the components of the parameter covariance matrix, if $i=j$, then $\hat{K}^{(ij)}=var(\hat{x}^i)$, otherwise $\hat{K}^{(ij)}=cov(\hat{x}^i,\hat{x}^j)$.<br>
 </p>
 
@@ -25,3 +26,6 @@ More general information about the theory of measurement errors can be found in:
 <p>Gordeev, V. A. (2004). Teoriya oshibok izmerenij i uravnitelnye vychisleniya [Measurement error theory and adjustment computations] (2nd ed.). Yekaterinburg: UrSMU. ISBN 5-8019-0054-3</p>
 
 <p>Amiri-Simkooei, A. (2007). Least-squares variance component estimation: theory and GPS applications. PhD thesis. Delft University of Technology, Delft institute of Earth Observation and Space systems (DEOS). Delf: Publications on Geodesy, 64, Netherlands Geodetic Commission. Retrieved from <a href="http://resolver.tudelft.nl/uuid:bc7f8919-1baf-4f02-b115-dc926c5ec090" target="_blank"><cite>http://resolver.tudelft.nl/uuid:bc7f8919-1baf-4f02-b115-dc926c5ec090</cite></a>.</p></p>
+
+An example of the program's operation in the form of a plan of the designed geodetic network with ellipses of mean square errors:
+![Geodetic Network Project](https://github.com/Anton-Geo/GeoNetAccuracy/blob/main/output/Images/Geodetic_Network_Project-0.png)
