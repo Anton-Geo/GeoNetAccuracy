@@ -67,7 +67,7 @@ def plot_geodetic_network(points, measurements, instrument_stations,
         if isinstance(point, RefinedPoints) or isinstance(point, EstimatedPoints):
             a = point.rmse_major * ellipse_scale * plan_scale
             b = point.rmse_minor * ellipse_scale * plan_scale
-            angle = float(np.degrees(math.pi / 2 + point.ellipse_angle))  # left to right !
+            angle = float(np.degrees(math.pi / 2 - point.ellipse_angle))  # left to right !
             ellipse = patches.Ellipse((point.y, point.x), 2 * a, 2 * b, angle=angle,
                                       edgecolor='purple', facecolor='none', linewidth=0.5, zorder=6)
             ax.add_patch(ellipse)
