@@ -23,7 +23,7 @@ class Points:
         rmse_major = ((tr_c_m + (tr_c_m**2 - 4 * det_c_m)**0.5) / 2)**0.5
         rmse_minor = ((tr_c_m - (tr_c_m**2 - 4 * det_c_m)**0.5) / 2)**0.5
         ellipse_angle = 0.5 * math.atan2(2 * self._corr_xy * self._rmse_x * self._rmse_y,
-                                         self._rmse_x**2 - self._rmse_y**2)
+                                         self._rmse_y**2 - self._rmse_x**2)
         # math.atan2 already takes into account the sign, so no additional condition is required
         # if self._rmse_y > self._rmse_x:
         #     ellipse_angle += math.pi / 2
