@@ -4,7 +4,7 @@ This is the main file to calculate preliminary accuracy assessment
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Union, Tuple  # , Any,
+from typing import Dict, List, Union, Tuple
 from points import Points, BasePoints, RefinedPoints, EstimatedPoints
 from instruments import GnssReceivers, Theodolites, TotalStations
 from stations import Stations
@@ -248,23 +248,40 @@ def create_jacobian_matrix(filtered_points: Tuple[Dict, Dict],
 
 def create_precision_matrix(list_measurements: List[Union[LinearMeasurements,
                                                           AngularMeasurements]],
-                            dict_refined_points: Dict) -> np.ndarray:
+                            dict_refined_points: Dict,
+                            aiming_error: float = None) -> np.ndarray:
     num_measurements = len(list_measurements)
     num_refined_points = len(dict_refined_points) * 2
     dimensionality = num_measurements + num_refined_points
 
     weight_values = []
     # Measurement weights
-    for measurement in list_measurements:
-        if isinstance(measurement, LinearMeasurements):
-            rmse = measurement.calculate_rmse() / 1000
-            weight_values.append(1 / rmse**2)
-        elif isinstance(measurement, AngularMeasurements):
-            rmse = measurement.calculate_rmse()
-            weight_values.append(1 / rmse**2)
-
-    weight_matrix = np.zeros((dimensionality, dimensionality))
-    np.fill_diagonal(weight_matrix, weight_values)
+    if aiming_error is None:
+        for measurement in list_measurements:
+            if isinstance(measurement, LinearMeasurements):
+                rmse = measurement.calculate_rmse() / 1000
+                weight_values.append(1 / rmse**2)
+            elif isinstance(measurement, AngularMeasurements):
+                rmse = measurement.calculate_rmse()
+                weight_values.append(1 / rmse**2)
+        weight_matrix = np.zeros((dimensionality, dimensionality))
+        np.fill_diagonal(weight_matrix, weight_values)
+    else:
+        for measurement in list_measurements:
+            e = aiming_error / 1000
+            if isinstance(measurement, LinearMeasurements):
+                rmse = measurement.calculate_rmse() / 1000
+                weight_values.append(1 / (rmse**2 + e**2))
+            elif isinstance(measurement, AngularMeasurements):
+                rmse = measurement.calculate_rmse()
+                delta_x = measurement.end_point.x - measurement.start_point.x
+                delta_y = measurement.end_point.y - measurement.start_point.y
+                distance = (delta_x ** 2 + delta_y ** 2) ** 0.5
+                rho = AngularMeasurements.RHO
+                print(rho)
+                weight_values.append(1 / (rmse**2 + (rho * e / distance)**2))
+        weight_matrix = np.zeros((dimensionality, dimensionality))
+        np.fill_diagonal(weight_matrix, weight_values)
 
     # Weights of coordinates of redefined points
     t = len(list_measurements)
@@ -289,7 +306,8 @@ def create_precision_matrix(list_measurements: List[Union[LinearMeasurements,
 def assess_points_accuracy(list_of_points: List[Points],
                            list_of_measurements: List[Union[LinearMeasurements,
                                                             AngularMeasurements]],
-                           list_of_stations: List[Stations]
+                           list_of_stations: List[Stations],
+                           aiming_error: float = None
                            ) -> Tuple[Dict[str, List[float]], Dict[str, List[float]],
                                       List[Points], List[Union[LinearMeasurements,
                                                                AngularMeasurements]],
@@ -300,7 +318,7 @@ def assess_points_accuracy(list_of_points: List[Points],
     filtered_measurements = create_filtered_measurements(filtered_points, list_of_measurements)
 
     matrix_j = create_jacobian_matrix(filtered_points, filtered_measurements, list_of_stations)  # J
-    matrix_p = create_precision_matrix(filtered_measurements, dict_refined_points)  # P
+    matrix_p = create_precision_matrix(filtered_measurements, dict_refined_points, aiming_error)  # P
     matrix_k = np.linalg.inv(matrix_j.T @ matrix_p @ matrix_j)  # K
 
     with np.printoptions(precision=6, suppress=True):
@@ -371,7 +389,7 @@ def assess_points_accuracy(list_of_points: List[Points],
 
 def main():
     list_points, list_measurements, list_stations = import_excel_data()
-    result_import = assess_points_accuracy(list_points, list_measurements, list_stations)
+    result_import = assess_points_accuracy(list_points, list_measurements, list_stations, aiming_error=0)
     point_table, station_table, points, measurements, stations = result_import
     print('---- Network points accuracy assessment ----')
     print(*result_import[0].items(), sep='\n')
@@ -380,7 +398,7 @@ def main():
 
     plot_geodetic_network(points, measurements, stations,
                           ellipse_scale=1, plan_scale=2000, show_stations=True,
-                          project_title='Geodetic Network Project')
+                          project_title='WS travers V-type')
 
 
 if __name__ == '__main__':
