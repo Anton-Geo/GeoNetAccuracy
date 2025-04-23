@@ -28,4 +28,4 @@ More general information about the theory of measurement errors can be found in:
 <p>Amiri-Simkooei, A. (2007). Least-squares variance component estimation: theory and GPS applications. PhD thesis. Delft University of Technology, Delft institute of Earth Observation and Space systems (DEOS). Delf: Publications on Geodesy, 64, Netherlands Geodetic Commission. Retrieved from <a href="http://resolver.tudelft.nl/uuid:bc7f8919-1baf-4f02-b115-dc926c5ec090" target="_blank"><cite>http://resolver.tudelft.nl/uuid:bc7f8919-1baf-4f02-b115-dc926c5ec090</cite></a>.</p></p>
 
 An example of the program's operation in the form of a plan of the designed geodetic network with ellipses of mean square errors:
-![Geodetic Network Project](https://github.com/Anton-Geo/GeoNetAccuracy/blob/main/output/Images/Geodetic_Network_Project-0.png)
+![Geodetic Network Project](https://github.com/Anton-Geo/GeoNetAccuracy/blob/main/output/Images/Geodetic_Network_Project.png)
